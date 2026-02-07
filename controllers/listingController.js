@@ -104,26 +104,12 @@ const createListing = async (req, res) => {
     try {
         const { title, description, originalPrice, discountedPrice, quantity, pickupStart, pickupEnd } = req.body;
         
-        // Image handling by logic
+        // Image handling with Cloudinary
         let image = null;
         if (req.file) {
-             if (req.file.path) {
-                 image = `uploads/${req.file.filename}`;
-             } else if (req.file.buffer) {
-                 try {
-                     const fs = require('fs');
-                     const path = require('path');
-                     const filename = `file-${Date.now()}${path.extname(req.file.originalname || '.jpg')}`;
-                     const uploadDir = path.resolve(__dirname, '..', 'uploads');
-                     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                     fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
-                     image = `uploads/${filename}`;
-                 } catch (e) {
-                     console.error('Buffer Write Error:', e);
-                 }
-             }
+            // Cloudinary automatically uploads and provides the URL
+            image = req.file.path; // Cloudinary secure URL
         }
-
 
         const listing = new FoodListing({
             vendor: req.user._id,
@@ -171,8 +157,8 @@ const updateListing = async (req, res) => {
             listing.pickupEnd = pickupEnd ? new Date(pickupEnd) : listing.pickupEnd;
 
             if (req.file) {
-                // Simplified image update logic
-                listing.image = `uploads/${req.file.filename}`;
+                // Cloudinary URL from uploaded file
+                listing.image = req.file.path;
             }
 
             const updatedListing = await listing.save();

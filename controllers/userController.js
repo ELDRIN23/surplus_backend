@@ -41,7 +41,7 @@ const updateUserProfile = async (req, res) => {
         }
 
         if (req.file) {
-            user.image = `uploads/${req.file.filename}`;
+            user.image = req.file.path; // Cloudinary URL
         }
 
         const updatedUser = await user.save();

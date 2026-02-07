@@ -17,10 +17,10 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Image logic
+    // Image logic with Cloudinary
     let image = null;
     if (req.file) {
-        image = `uploads/${req.file.filename}`;
+        image = req.file.path; // Cloudinary URL
     }
 
     let parsedCoordinates = null;
@@ -77,21 +77,7 @@ const registerVendor = async (req, res) => {
 
     let image = null;
     if (req.file) {
-        if (req.file.path) {
-            image = `uploads/${req.file.filename}`;
-        } else if (req.file.buffer) {
-            try {
-                const fs = require('fs');
-                const path = require('path');
-                const filename = `vendor-${Date.now()}${path.extname(req.file.originalname || '.jpg')}`;
-                const uploadDir = path.resolve(__dirname, '..', 'uploads');
-                if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
-                image = `uploads/${filename}`;
-            } catch (e) {
-                console.error('Vendor Image Save Error:', e);
-            }
-        }
+        image = req.file.path; // Cloudinary URL
     }
 
     let parsedCoordinates = null;
