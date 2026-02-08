@@ -3,10 +3,15 @@ const FoodListing = require('../models/FoodListing');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+let razorpay;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_ID !== 'your_key_id') {
+    razorpay = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+} else {
+    console.warn('Razorpay keys missing. Payment integration will not work.');
+}
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -47,6 +52,9 @@ const createOrder = async (req, res) => {
             receipt: `receipt_${Date.now()}`
         };
 
+        if (!razorpay) {
+            return res.status(503).json({ message: 'Payment gateway not configured. Please contact support.' });
+        }
         const razorpayOrder = await razorpay.orders.create(options);
 
         if (!razorpayOrder) {
