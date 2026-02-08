@@ -10,12 +10,18 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Enable CORS
-app.use(cors({
-    origin: true, // Dynamically allow the origin that made the request
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://surplusbackend-production.up.railway.app/",
+  
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
+  })
+);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
