@@ -19,59 +19,21 @@ const getListings = async (req, res) => {
             { $set: { status: 'sold_out' } }
         );
 
-        // 2. Fetch all vendors (Temporarily allowing unapproved for dev visibility)
-        const vendors = await Vendor.find({}).select('name address rating image');
-        
-        // 3. Get latest listings for these vendors (priority: active > sold_out)
-        const allResults = [];
-        
-        for (const vendor of vendors) {
-            const filter = { 
-                vendor: vendor._id,
-                status: { $in: ['active', 'sold_out'] },
-                pickupEnd: { $gt: currentTime }
-            };
-            
-            if (category && category !== 'All') {
-                filter.category = category;
-            }
+        // 2. Fetch all listings from all vendors (active or sold_out)
+        const filter = {
+            status: { $in: ['active', 'sold_out'] },
+            pickupEnd: { $gt: currentTime }
+        };
 
-            const latestListing = await FoodListing.findOne(filter)
-                .populate('vendor', 'name address rating')
-                .sort({ status: 1, createdAt: -1 });
-
-            if (latestListing) {
-                allResults.push(latestListing);
-            } else {
-                // If vendor has no current listing, create a "Sold Out" placeholder
-                // but only if NO category filter is applied, or if we want them to show in a category?
-                // For now, only show placeholders in "All" view to keep it clean, 
-                // or if the vendor is generally associated with that category.
-                if (!category || category === 'All') {
-                    allResults.push({
-                        _id: `temp-${vendor._id}`,
-                        vendor: vendor,
-                        title: 'Fresh Mystery Bag',
-                        status: 'sold_out',
-                        remainingQuantity: 0,
-                        originalPrice: 0,
-                        discountedPrice: 0,
-                        pickupStart: currentTime,
-                        pickupEnd: currentTime,
-                        isPlaceholder: true
-                    });
-                }
-            }
+        if (category && category !== 'All') {
+            filter.category = category;
         }
 
-        // Sort: Active first, then Sold Out
-        const sortedResults = allResults.sort((a, b) => {
-            if (a.status === 'active' && b.status !== 'active') return -1;
-            if (a.status !== 'active' && b.status === 'active') return 1;
-            return 0;
-        });
+        const listings = await FoodListing.find(filter)
+            .populate('vendor', 'name address rating image')
+            .sort({ status: 1, createdAt: -1 });
 
-        res.json(sortedResults);
+        res.json(listings);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });

@@ -9,41 +9,68 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "https://surplusbackend-production.up.railway.app/",
-  
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-  })
-);
+/* ================= CORS CONFIG ================= */
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://surpluz.vercel.app"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow Postman / curl / mobile apps
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.log("Blocked by CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+// Enable CORS FIRST
+app.use(cors(corsOptions));
+
+// Express v5 preflight fix
+app.options(/.*/, cors(corsOptions));
+
+/* ================================================= */
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Log all requests with timing
+// Log all requests
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.originalUrl} - Origin: ${req.headers.origin}`);
-    next();
+  console.log(`${req.method} ${req.originalUrl} - Origin: ${req.headers.origin}`);
+  next();
 });
 
-// Health Check (Bypass DB check)
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK', message: 'Server is running' }));
+// Health Check
+app.get('/health', (req, res) =>
+  res.status(200).json({ status: 'OK', message: 'Server is running' })
+);
 
 // DB Status Middleware
 app.use((req, res, next) => {
-    if (mongoose.connection.readyState !== 1) {
-        return res.status(503).json({ message: 'Database not connected yet. Server is starting up or failed to connect.' });
-    }
-    next();
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      message:
+        'Database connection failed. Add MONGO_URI in environment variables.',
+      status: mongoose.connection.readyState,
+    });
+  }
+  next();
 });
 
-// Routes
+/* ================= ROUTES ================= */
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/listings', require('./routes/listingRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
@@ -51,52 +78,47 @@ app.use('/api/vendors', require('./routes/vendorRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 
+/* ================= DB CONNECTION ================= */
 
-
-
-
-
-// DB Connection Logic with Fallback
 const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log('MongoDB Connected Successfully');
+
+    const { startExpirationScheduler } = require('./utils/expirationScheduler');
+    startExpirationScheduler();
+  } catch (err) {
+    console.error('MongoDB Connection Error:', err.message);
+    console.log('Falling back to in-memory DB');
+
     try {
-        await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 5000 });
-        console.log('MongoDB Connected Successfully');
-        
-        // Start automatic listing expiration scheduler
-        const { startExpirationScheduler } = require('./utils/expirationScheduler');
-        startExpirationScheduler();
-    } catch (err) {
-        console.error('CRITICAL: Initial MongoDB Connection Error:', err.message);
-        console.log('--------------------------------------------------');
-        console.log('ATTENTION: FALLING BACK TO IN-MEMORY DATABASE');
-        console.log('DATA WILL BE LOST UPON RESTART. THIS IS LIKELY');
-        console.log('BECAUSE MONGO_URI IS MISSING OR INCORRECT IN ENVIRONMENT');
-        console.log('--------------------------------------------------');
-        try {
-            // Check if package exists before requiring
-            require.resolve('mongodb-memory-server');
-            const { MongoMemoryServer } = require('mongodb-memory-server');
-            const mongod = await MongoMemoryServer.create();
-            const uri = mongod.getUri();
-            await mongoose.connect(uri);
-            console.log(`MongoDB Connected Successfully (In-Memory Fallback at ${uri})`);
-            
-            const { startExpirationScheduler } = require('./utils/expirationScheduler');
-            startExpirationScheduler();
-        } catch (memErr) {
-            console.error('DB FALLBACK FAILED:', memErr.message);
-            console.log('Please ensure MONGO_URI is correct in .env');
-        }
+      require.resolve('mongodb-memory-server');
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      const mongod = await MongoMemoryServer.create();
+      const uri = mongod.getUri();
+      await mongoose.connect(uri);
+      console.log(`MongoDB Connected (Memory at ${uri})`);
+
+      const { startExpirationScheduler } = require('./utils/expirationScheduler');
+      startExpirationScheduler();
+    } catch (memErr) {
+      console.error('Memory DB Failed:', memErr.message);
     }
+  }
 };
+
 startServer();
 
-// Routes (Placeholder)
+/* ================= ROOT ================= */
+
 app.get('/', (req, res) => {
-    res.send('Surplus Food Marketplace API is running');
+  res.send('Surplus Food Marketplace API is running');
 });
 
-// Start Server
+/* ================= START SERVER ================= */
+
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
