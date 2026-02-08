@@ -9,18 +9,32 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-// Increase limit for JSON/Payloads (sometimes image data is sent as base64 or large form data)
+// Enable CORS with permissive options for troubleshooting
+app.use(cors({
+    origin: function(origin, callback) {
+        // Allow all origins for now to resolve the blocking error
+        callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
+
+// Explicitly handle OPTIONS preflight
+app.options('*', cors()); 
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Log all requests
+// Log all requests with timing
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.originalUrl}`);
+    console.log(`${req.method} ${req.originalUrl} - Origin: ${req.headers.origin}`);
     next();
 });
+
+// Health Check (Bypass DB check)
+app.get('/health', (req, res) => res.status(200).json({ status: 'OK', message: 'Server is running' }));
 
 // DB Status Middleware
 app.use((req, res, next) => {
@@ -53,8 +67,12 @@ const startServer = async () => {
         const { startExpirationScheduler } = require('./utils/expirationScheduler');
         startExpirationScheduler();
     } catch (err) {
-        console.error('Initial MongoDB Connection Error:', err.message);
-        console.log('Attempting In-Memory Fallback...');
+        console.error('CRITICAL: Initial MongoDB Connection Error:', err.message);
+        console.log('--------------------------------------------------');
+        console.log('ATTENTION: FALLING BACK TO IN-MEMORY DATABASE');
+        console.log('DATA WILL BE LOST UPON RESTART. THIS IS LIKELY');
+        console.log('BECAUSE MONGO_URI IS MISSING OR INCORRECT IN ENVIRONMENT');
+        console.log('--------------------------------------------------');
         try {
             // Check if package exists before requiring
             require.resolve('mongodb-memory-server');
@@ -63,13 +81,12 @@ const startServer = async () => {
             const uri = mongod.getUri();
             await mongoose.connect(uri);
             console.log(`MongoDB Connected Successfully (In-Memory Fallback at ${uri})`);
-            console.log('WARNING: Data will be lost when server stops.');
             
             const { startExpirationScheduler } = require('./utils/expirationScheduler');
             startExpirationScheduler();
         } catch (memErr) {
             console.error('DB FALLBACK FAILED:', memErr.message);
-            console.log('Please ensure MONGO_URI is correct in .env or run "npm install mongodb-memory-server" for local dev.');
+            console.log('Please ensure MONGO_URI is correct in .env');
         }
     }
 };

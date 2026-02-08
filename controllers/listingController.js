@@ -19,8 +19,8 @@ const getListings = async (req, res) => {
             { $set: { status: 'sold_out' } }
         );
 
-        // 2. Fetch all enabled (approved) vendors
-        const vendors = await Vendor.find({ isApproved: true }).select('name address rating image');
+        // 2. Fetch all vendors (Temporarily allowing unapproved for dev visibility)
+        const vendors = await Vendor.find({}).select('name address rating image');
         
         // 3. Get latest listings for these vendors (priority: active > sold_out)
         const allResults = [];
