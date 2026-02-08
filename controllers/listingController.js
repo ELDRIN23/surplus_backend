@@ -61,11 +61,12 @@ const getListings = async (req, res) => {
             }
         }
 
-        // Sort: Active first, then Sold Out
+        // Sort: Active first, then by createdAt (newest first)
         const sortedResults = allResults.sort((a, b) => {
             if (a.status === 'active' && b.status !== 'active') return -1;
             if (a.status !== 'active' && b.status === 'active') return 1;
-            return 0;
+            // For same status, sort by newest first (highest timestamp)
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
         });
 
         res.json(sortedResults);
