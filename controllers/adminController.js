@@ -122,6 +122,22 @@ const getUserOrders = async (req, res) => {
     }
 };
 
+// @desc    Get all transactions
+// @route   GET /api/admin/transactions
+// @access  Private (Admin)
+const getAllTransactions = async (req, res) => {
+    try {
+        const orders = await Order.find({})
+            .populate('user', 'name email')
+            .populate('vendor', 'name')
+            .populate('items.listing', 'title')
+            .sort({ createdAt: -1 });
+        res.json(orders);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = { 
     getPendingVendors, 
     toggleVendorApproval, 
@@ -130,5 +146,6 @@ module.exports = {
     getVendorListings,
     deleteVendor,
     toggleUserStatus,
-    getUserOrders
+    getUserOrders,
+    getAllTransactions
 };
